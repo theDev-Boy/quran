@@ -1,139 +1,51 @@
-name: NOOR Quran - Build Release APK and AAB
+name: Build Android APK
 
 on:
   push:
-    branches: [ main, master ]
-    tags:
-      - 'v*'
+    branches:
+      - main
+      - master
   pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Build type'
-        required: true
-        default: 'apk'
-        type: choice
-        options:
-          - apk
-          - appbundle
-          - both
+    branches:
+      - main
+      - master
+  workflow_dispatch: # Allows you to manually trigger the build from the Actions tab
 
 jobs:
-  analyze-and-test:
-    name: Static Analysis & Tests
+  build:
+    name: Build & Export APK
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
+      - name: Setup Java
+        uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '17' # Required for newer Android Gradle Plugins
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
           channel: 'stable'
-          cache: true
+          cache: true # Speeds up consecutive builds by caching flutter SDK
 
-      - name: Get Dependencies
+      - name: Install Dependencies
         run: flutter pub get
 
-      - name: Analyze Project Source
-        run: flutter analyze
+      # NOTE: If you haven't committed the google-services.json file to GitHub for security reasons, 
+      # uncomment the lines below and add the base64 string to GitHub Secrets as GOOGLE_SERVICES_JSON.
+      # - name: Setup Firebase Config (google-services.json)
+      #   run: echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 --decode > android/app/google-services.json
 
-      - name: Run All Tests
-        run: flutter test
-
-  build-android:
-    name: Build Android Artifacts
-    runs-on: ubuntu-latest
-    needs: analyze-and-test
-    
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.19.0'
-          channel: 'stable'
-          cache: true
-
-      - name: Get Dependencies
-        run: flutter pub get
-
-      - name: Build APK (All ABIs)
-        if: ${{ github.event.inputs.build_type == 'apk' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '' }}
+      - name: Build Android APK
         run: flutter build apk --release
 
-      - name: Build App Bundle
-        if: ${{ github.event.inputs.build_type == 'appbundle' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '' }}
-        run: flutter build appbundle --release
-
-      - name: Upload APK Artifacts
+      - name: Upload APK as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-apks
-          path: build/app/outputs/flutter-apk/*.apk
-          retention-days: 30
-
-      - name: Upload AAB Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-aab
-          path: build/app/outputs/bundle/release/*.aab
-          retention-days: 30
-
-  create-release:
-    name: Create GitHub Release
-    runs-on: ubuntu-latest
-    needs: build-android
-    if: startsWith(github.ref, 'refs/tags/v')
-    
-    steps:
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            artifacts/release-apks/*.apk
-            artifacts/release-aab/*.aab
-          name: "NOOR Quran - ${{ github.ref_name }}"
-          body: |
-            ## NOOR Quran - ${{ github.ref_name }}
-            
-            ### Translation Languages Included
-            - English (Natural Human Voice)
-            - Urdu (Natural Human Voice)
-            - Pashto (Natural Human Voice)
-            - Hindi (Natural Human Voice)
-            
-            ### Build Details
-            - Flutter Version: 3.19.0
-            - Build Date: ${{ github.event.head_commit.timestamp }}
-            - Commit SHA: ${{ github.sha }}
-            
-            ---
-            *Built automatically via GitHub Actions*
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: NOOR-Quran-Release-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14 # The APK will be available for download for 14 days

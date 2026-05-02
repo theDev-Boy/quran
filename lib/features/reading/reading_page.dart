@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_quran/flutter_quran.dart';
 import '../../controllers/audio_controller.dart';
 import '../../controllers/settings_controller.dart';
+import '../../services/asset_download_service.dart';
+
+final downloadServiceProvider = ChangeNotifierProvider((ref) => AssetDownloadService());
 
 class ReadingPage extends ConsumerStatefulWidget {
   const ReadingPage({super.key});
@@ -12,6 +15,29 @@ class ReadingPage extends ConsumerStatefulWidget {
 }
 
 class _ReadingPageState extends ConsumerState<ReadingPage> {
+  @override
+  void initState() {
+    super.initState();
+    _checkAssets();
+  }
+
+  Future<void> _checkAssets() async {
+    final downloaded = await ref.read(downloadServiceProvider).areAssetsDownloaded();
+    if (!downloaded) {
+      _showDownloadDialog();
+    }
+  }
+
+  void _showDownloadDialog() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const DownloadDialog(),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -255,6 +281,43 @@ class _SpeedBtn extends StatelessWidget {
         foregroundColor: isActive ? Colors.white : Colors.black,
       ),
       child: Text(label),
+    );
+  }
+}
+
+class DownloadDialog extends ConsumerWidget {
+  const DownloadDialog({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final downloadService = ref.watch(downloadServiceProvider);
+
+    return AlertDialog(
+      title: const Text('Downloading Quran Assets'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('The full Quran audio and translations are being downloaded for offline use. This may take a few minutes.'),
+          const SizedBox(height: 24),
+          if (downloadService.isDownloading) ...[
+            LinearProgressIndicator(value: downloadService.progress > 0 ? downloadService.progress : null),
+            const SizedBox(height: 8),
+            Text(downloadService.status, style: const TextStyle(fontSize: 12)),
+          ] else ...[
+            ElevatedButton(
+              onPressed: () => ref.read(downloadServiceProvider).downloadFullAssets(),
+              child: const Text('Start Download'),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        if (!downloadService.isDownloading && downloadService.status == 'Download Complete!')
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Finish'),
+          ),
+      ],
     );
   }
 }

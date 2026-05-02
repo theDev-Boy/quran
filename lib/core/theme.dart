@@ -120,8 +120,7 @@ class AppTheme {
       scaffoldBackgroundColor: const Color(0xFF1A1A1A), // Dark Charcoal
       colorScheme: const ColorScheme.dark(
         primary: Color(0xFFDAA520), // Golden Amber for readability
-        background: Color(0xFF1A1A1A),
-        surface: Color(0xFF242424),
+        surface: Color(0xFF1A1A1A),
       ),
       // ... more dark theme details
     );
