@@ -5,7 +5,7 @@ import 'core/theme.dart';
 import 'services/translation_service.dart';
 import 'services/tts_service.dart';
 import 'services/recitation_service.dart';
-import 'features/reading/reading_page.dart';
+import 'features/launch/launch_page.dart';
 
 final translationServiceProvider = Provider((ref) => TranslationService());
 final ttsServiceProvider = Provider((ref) => TtsService());
@@ -35,10 +35,12 @@ class NoorQuranApp extends ConsumerWidget {
     ref.read(recitationServiceProvider).init();
 
     return MaterialApp(
-      title: 'NOOR Quran',
+      title: 'Noor Quran',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const ReadingPage(),
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system, // Will be controlled by settings later
+      home: const LaunchPage(),
     );
   }
 }

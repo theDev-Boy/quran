@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_quran/flutter_quran.dart';
-import '../../controllers/audio_controller.dart';
+import '../../core/theme.dart';
 import '../../controllers/settings_controller.dart';
 import '../../services/asset_download_service.dart';
 
@@ -41,110 +41,165 @@ class _ReadingPageState extends ConsumerState<ReadingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('NOOR Quran'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.translate_rounded),
-            onPressed: () => _showTranslationSettings(),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          // The core Quran screen from the package
-          FlutterQuranScreen(),
-          
-          // Custom overlay for translation (PRD 1.5 - Bottom Panel mode)
-          const Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: TranslationPanel(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showTranslationSettings() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => const TranslationSettingsDrawer(),
-    );
-  }
-}
-
-class TranslationPanel extends ConsumerWidget {
-  const TranslationPanel({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentVerse = ref.watch(currentVerseProvider);
-    final audioState = ref.watch(audioControllerProvider);
-    final lang = ref.watch(selectedLanguageProvider);
-
-    if (currentVerse == null) {
-      return Container(
-        height: 60,
-        margin: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
-        ),
-        child: const Center(child: Text('Select a verse to see translation')),
-      );
-    }
-
-    return Container(
-      height: 150,
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(25),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+      body: SafeArea(
         child: Column(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Verse ${currentVerse.surahId}:${currentVerse.ayahNumber}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: Icon(audioState.isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded),
-                  onPressed: () {
-                    if (audioState.isPlaying) {
-                      ref.read(audioControllerProvider.notifier).stop();
-                    } else {
-                      ref.read(audioControllerProvider.notifier).playVerse(
-                        currentVerse.surahId,
-                        currentVerse.ayahNumber,
-                        lang,
-                      );
-                    }
-                  },
-                ),
-              ],
-            ),
+            _buildSlimTopBar(context),
             Expanded(
-              child: SingleChildScrollView(
-                child: Text(
-                  audioState.currentTranslation ?? 'Fetching translation...',
-                  style: const TextStyle(fontSize: 16),
-                ),
+              child: Stack(
+                children: [
+                  // Core Quran screen
+                  InteractiveViewer(
+                    minScale: 1.0,
+                    maxScale: 4.0,
+                    child: Stack(
+                      children: [
+                        FlutterQuranScreen(),
+                        // Per-line buttons overlay
+                        _buildLineButtonsOverlay(),
+                      ],
+                    ),
+                  ),
+                  
+                  // Surah Info Button (PRD: Somewhere on the page)
+                  Positioned(
+                    bottom: 24,
+                    right: 24,
+                    child: FloatingActionButton.small(
+                      onPressed: () => _showSurahInfo(context),
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      child: const Icon(Icons.info_outline),
+                    ),
+                  ),
+                ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLineButtonsOverlay() {
+    // Assuming 15 lines per page for a standard Mushaf
+    const totalLines = 15;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final lineHeight = constraints.maxHeight / totalLines;
+        return Stack(
+          children: List.generate(totalLines, (index) {
+            final lineNum = index + 1;
+            return Positioned(
+              top: index * lineHeight,
+              left: 8,
+              child: _LineControls(lineNum: lineNum),
+            );
+          }),
+        );
+      },
+    );
+  }
+
+  Widget _buildSlimTopBar(BuildContext context) {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(bottom: BorderSide(color: Theme.of(context).dividerTheme.color ?? Colors.transparent)),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          const Expanded(
+            child: Center(
+              child: Text(
+                'Surah Al-Baqarah',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.speed, size: 20),
+            onPressed: () => _showSpeedControl(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.volume_up, size: 20),
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSurahInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Surah Al-Baqarah', style: TextStyle(color: AppTheme.primary)),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Meaning: The Cow'),
+            Text('Revealed: Madinah'),
+            Text('Verses: 286'),
+            SizedBox(height: 12),
+            Text(
+              'This is the longest Surah of the Quran. It contains Ayat al-Kursi and the last two verses which have great significance.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  void _showSpeedControl(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Playback Speed', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [0.5, 0.75, 1.0, 1.25, 1.5].map((s) => InkWell(
+                onTap: () {
+                  ref.read(playbackSpeedProvider.notifier).state = s;
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: ref.watch(playbackSpeedProvider) == s ? AppTheme.primary : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${s}x',
+                    style: TextStyle(
+                      color: ref.watch(playbackSpeedProvider) == s ? Colors.white : AppTheme.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              )).toList(),
             ),
           ],
         ),
@@ -153,134 +208,51 @@ class TranslationPanel extends ConsumerWidget {
   }
 }
 
-class TranslationSettingsDrawer extends ConsumerWidget {
-  const TranslationSettingsDrawer({super.key});
+class _LineControls extends ConsumerWidget {
+  final int lineNum;
+  const _LineControls({required this.lineNum});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selectedLang = ref.watch(selectedLanguageProvider);
-    final selectedSpeed = ref.watch(playbackSpeedProvider);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildIconBtn(Icons.play_arrow_rounded, () {
+          // Play line logic
+        }),
+        _buildIconBtn(Icons.language_rounded, () {
+          _showLanguageMenu(context, ref);
+        }),
+        _buildIconBtn(Icons.bookmark_outline, () {
+          // Bookmark logic
+        }),
+      ],
+    );
+  }
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      height: 400,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Language Selection',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _LangChip(
-                  label: 'English', 
-                  code: 'en', 
-                  isActive: selectedLang == 'en',
-                  onTap: () => ref.read(selectedLanguageProvider.notifier).state = 'en',
-                ),
-                _LangChip(
-                  label: 'اردو', 
-                  code: 'ur', 
-                  isActive: selectedLang == 'ur',
-                  onTap: () => ref.read(selectedLanguageProvider.notifier).state = 'ur',
-                ),
-                _LangChip(
-                  label: 'हिंदी', 
-                  code: 'hi', 
-                  isActive: selectedLang == 'hi',
-                  onTap: () => ref.read(selectedLanguageProvider.notifier).state = 'hi',
-                ),
-                _LangChip(
-                  label: 'پښتو', 
-                  code: 'ps', 
-                  isActive: selectedLang == 'ps',
-                  onTap: () => ref.read(selectedLanguageProvider.notifier).state = 'ps',
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 32),
-          const Text(
-            'TTS Playback Speed',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _SpeedBtn(
-                label: '0.5x', 
-                isActive: selectedSpeed == 0.5,
-                onTap: () => ref.read(playbackSpeedProvider.notifier).state = 0.5,
-              ),
-              _SpeedBtn(
-                label: '1.0x', 
-                isActive: selectedSpeed == 1.0,
-                onTap: () => ref.read(playbackSpeedProvider.notifier).state = 1.0,
-              ),
-              _SpeedBtn(
-                label: '1.5x', 
-                isActive: selectedSpeed == 1.5,
-                onTap: () => ref.read(playbackSpeedProvider.notifier).state = 1.5,
-              ),
-              _SpeedBtn(
-                label: '2.0x', 
-                isActive: selectedSpeed == 2.0,
-                onTap: () => ref.read(playbackSpeedProvider.notifier).state = 2.0,
-              ),
-            ],
-          ),
-        ],
+  Widget _buildIconBtn(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Icon(icon, size: 16, color: AppTheme.primary.withValues(alpha: 0.6)),
       ),
     );
   }
-}
 
-class _LangChip extends StatelessWidget {
-  final String label;
-  final String code;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _LangChip({required this.label, required this.code, required this.isActive, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: isActive,
-        onSelected: (_) => onTap(),
+  void _showLanguageMenu(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: ['English', 'Urdu', 'Hindi', 'Pashto'].map((lang) => ListTile(
+          title: Text(lang),
+          onTap: () {
+            // Set language and show translation below line
+            Navigator.pop(context);
+          },
+        )).toList(),
       ),
-    );
-  }
-}
-
-class _SpeedBtn extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _SpeedBtn({required this.label, this.isActive = false, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton(
-      onPressed: onTap,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isActive ? Theme.of(context).primaryColor : Colors.grey[200],
-        foregroundColor: isActive ? Colors.white : Colors.black,
-      ),
-      child: Text(label),
     );
   }
 }

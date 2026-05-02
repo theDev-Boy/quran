@@ -1,17 +1,27 @@
+import 'dart:io';
 import 'package:just_audio/just_audio.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 
 class RecitationService {
   final AudioPlayer _player = AudioPlayer();
   late Database _db;
 
   Future<void> init() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'timestamps.db');
+    final docDir = await getApplicationDocumentsDirectory();
+    final downloadedPath = join(docDir.path, 'timestamps.db');
+    
+    String finalPath;
+    if (await File(downloadedPath).exists()) {
+      finalPath = downloadedPath;
+    } else {
+      final dbPath = await getDatabasesPath();
+      finalPath = join(dbPath, 'timestamps.db');
+    }
     
     _db = await openDatabase(
-      path,
+      finalPath,
       version: 1,
       onCreate: (db, version) async {
         await db.execute('''
@@ -42,9 +52,17 @@ class RecitationService {
     final endMs = result.first['end_ms'] as int;
     final duration = endMs - startMs;
 
-    final surahPath = 'assets/recitation/qari_$qariId/surah_${surahId.toString().padLeft(3, '0')}.mp3';
+    final docDir = await getApplicationDocumentsDirectory();
+    final surahPath = join(docDir.path, 'audio', 'qari_$qariId', 'surah_${surahId.toString().padLeft(3, '0')}.mp3');
     
-    await _player.setAsset(surahPath);
+    final file = File(surahPath);
+    if (await file.exists()) {
+      await _player.setFilePath(surahPath);
+    } else {
+      // Fallback to assets for samples
+      final assetPath = 'assets/recitation/qari_$qariId/surah_${surahId.toString().padLeft(3, '0')}.mp3';
+      await _player.setAsset(assetPath);
+    }
     await _player.seek(Duration(milliseconds: startMs));
     _player.play();
 
